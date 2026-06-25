@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import './styles.css';
 import { requestJson } from './utils/api';
+import { getDialogFocusTargetIndex, shouldCloseDialog } from './utils/dialog';
 import { createLatestRequestTracker } from './utils/latestRequest';
 import { getReaderRecoveryOptions } from './utils/readerRecovery';
 import { supabase, supabaseConfigured } from './utils/supabase';
@@ -1364,13 +1365,74 @@ function NewsletterCategoryModal({
   onToggleSource,
   onSave,
 }) {
+  const dialogRef = useRef(null);
+
+  useEffect(() => {
+    const previouslyFocused = document.activeElement;
+    const previousBodyOverflow = document.body.style.overflow;
+    const dialog = dialogRef.current;
+    const focusableSelector = [
+      'button:not([disabled])',
+      'input:not([disabled])',
+      'select:not([disabled])',
+      'textarea:not([disabled])',
+      'a[href]',
+      '[tabindex]:not([tabindex="-1"])',
+    ].join(',');
+
+    function focusableElements() {
+      return dialog ? [...dialog.querySelectorAll(focusableSelector)] : [];
+    }
+
+    function handleDialogKeyDown(event) {
+      if (shouldCloseDialog(event.key)) {
+        event.preventDefault();
+        onClose();
+        return;
+      }
+      if (event.key !== 'Tab') return;
+
+      const elements = focusableElements();
+      if (!elements.length) {
+        event.preventDefault();
+        dialog?.focus();
+        return;
+      }
+      const currentIndex = elements.indexOf(document.activeElement);
+      if (currentIndex === -1) {
+        event.preventDefault();
+        elements[event.shiftKey ? elements.length - 1 : 0].focus();
+        return;
+      }
+      const targetIndex = getDialogFocusTargetIndex(currentIndex, event.shiftKey, elements.length);
+      if (targetIndex !== null) {
+        event.preventDefault();
+        elements[targetIndex].focus();
+      }
+    }
+
+    document.body.style.overflow = 'hidden';
+    document.addEventListener('keydown', handleDialogKeyDown);
+    focusableElements()[0]?.focus();
+
+    return () => {
+      document.body.style.overflow = previousBodyOverflow;
+      document.removeEventListener('keydown', handleDialogKeyDown);
+      if (previouslyFocused instanceof HTMLElement) {
+        previouslyFocused.focus();
+      }
+    };
+  }, []);
+
   return (
     <div className="modal-backdrop" role="presentation" onClick={onClose}>
       <div
+        ref={dialogRef}
         className="modal-card"
         role="dialog"
         aria-modal="true"
         aria-labelledby="newsletter-modal-title"
+        tabIndex={-1}
         onClick={(event) => event.stopPropagation()}
       >
         <div className="modal-header">
@@ -1378,7 +1440,7 @@ function NewsletterCategoryModal({
             <p className="eyebrow">뉴스레터 카테고리 추가</p>
             <h2 id="newsletter-modal-title">검색 힌트로 RSS 후보를 찾습니다</h2>
           </div>
-          <button type="button" className="secondary-button" onClick={onClose}>
+          <button type="button" className="secondary-button" onClick={onClose} aria-label="카테고리 추가 닫기">
             닫기
           </button>
         </div>

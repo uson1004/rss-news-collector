@@ -1,17 +1,20 @@
 from __future__ import annotations
 
 import asyncio
+import os
 import sys
 import tempfile
 import unittest
 from datetime import datetime, timezone
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).parent))
 
 import newsletter_store
 from newsletter_delivery import deliver_due_newsletters
+from main import NewsletterPreviewResponse, newsletter_unsubscribe_page, personalize_newsletter_digest
 from newsletter_store import (
     claim_delivery_attempt,
     create_category,
@@ -171,6 +174,27 @@ class NewsletterDeliveryTest(unittest.TestCase):
         self.assertEqual(summary["results"][0]["status"], "failed")
         self.assertEqual(get_subscription(subscription["id"])["last_sent_at"], "")
         self.assertEqual(list_due_subscriptions(self.now), [])
+
+    def test_personalized_digest_contains_unsubscribe_link(self) -> None:
+        digest = NewsletterPreviewResponse(
+            subject="Subject",
+            text_body="Text body",
+            html_body="<html><body><main>HTML body</main></body></html>",
+        )
+        with patch.dict(os.environ, {"NEWSLETTER_PUBLIC_BASE_URL": "https://reader.example"}, clear=False):
+            personalized = personalize_newsletter_digest(digest, "unsubscribe-token")
+
+        expected_url = "https://reader.example/api/newsletter/unsubscribe?token=unsubscribe-token"
+        self.assertIn(expected_url, personalized.text_body)
+        self.assertIn(expected_url, personalized.html_body)
+
+    def test_browser_unsubscribe_page_deactivates_subscription(self) -> None:
+        subscription = self.create_weekly_subscription()
+
+        response = asyncio.run(newsletter_unsubscribe_page(subscription["unsubscribe_token"]))
+
+        self.assertIn("구독을 해지했어요", response.body.decode())
+        self.assertEqual(list_active_subscriptions(), [])
 
 
 if __name__ == "__main__":

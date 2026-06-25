@@ -14,6 +14,7 @@ from newsletter_store import (
 
 DigestBuilder = Callable[[str], Awaitable[Any]]
 EmailSender = Callable[[str, str, str, str], None]
+DigestPersonalizer = Callable[[Any, str], Any]
 
 
 def _error_text(error: BaseException) -> str:
@@ -35,12 +36,19 @@ def _default_email_sender(to_email: str, subject: str, text_body: str, html_body
     send_newsletter_email(to_email, subject, text_body, html_body)
 
 
+def _default_digest_personalizer(digest: Any, unsubscribe_token: str) -> Any:
+    from main import personalize_newsletter_digest
+
+    return personalize_newsletter_digest(digest, unsubscribe_token)
+
+
 async def deliver_due_newsletters(
     now: datetime | str | None = None,
     limit: int = 100,
     dry_run: bool = False,
     digest_builder: DigestBuilder | None = None,
     email_sender: EmailSender | None = None,
+    digest_personalizer: DigestPersonalizer | None = None,
 ) -> dict[str, Any]:
     window = delivery_window_for(now)
     due_subscriptions = list_due_subscriptions(now, limit)
@@ -69,6 +77,7 @@ async def deliver_due_newsletters(
 
     build_digest = digest_builder or _default_digest_builder
     send_email = email_sender or _default_email_sender
+    personalize_digest = digest_personalizer or _default_digest_personalizer
     digest_cache: dict[str, Any] = {}
 
     for subscription in due_subscriptions:
@@ -98,7 +107,10 @@ async def deliver_due_newsletters(
             category_id = subscription["category_id"]
             if category_id not in digest_cache:
                 digest_cache[category_id] = await build_digest(category_id)
-            digest = digest_cache[category_id]
+            digest = personalize_digest(
+                digest_cache[category_id],
+                subscription["unsubscribe_token"],
+            )
             await asyncio.to_thread(
                 send_email,
                 subscription["email"],

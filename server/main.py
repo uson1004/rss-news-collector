@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 from email.message import EmailMessage
 from email.utils import formatdate, parsedate_to_datetime
 from typing import Optional
-from urllib.parse import urlparse, urlunparse
+from urllib.parse import quote, urlparse, urlunparse
 
 import httpx
 import trafilatura
@@ -1414,6 +1414,33 @@ def render_newsletter_html(label: str, items: list[dict[str, object]]) -> str:
     """
 
 
+def personalize_newsletter_digest(
+    digest: NewsletterPreviewResponse,
+    unsubscribe_token: str,
+) -> NewsletterPreviewResponse:
+    token = unsubscribe_token.strip()
+    if not token:
+        return digest
+
+    public_base_url = os.getenv("NEWSLETTER_PUBLIC_BASE_URL", "http://localhost:8000").rstrip("/")
+    unsubscribe_url = f"{public_base_url}/api/newsletter/unsubscribe?token={quote(token, safe='')}"
+    text_body = f"{digest.text_body.rstrip()}\n\n구독 해지: {unsubscribe_url}"
+    unsubscribe_footer = (
+        '<p style="margin:24px 0 0;color:#6b7280;font-size:13px;">'
+        f'<a href="{escape_html(unsubscribe_url)}" style="color:#6b7280;">뉴스레터 구독 해지</a>'
+        "</p>"
+    )
+    if "</main>" in digest.html_body:
+        html_body = digest.html_body.replace("</main>", f"{unsubscribe_footer}</main>", 1)
+    else:
+        html_body = f"{digest.html_body}{unsubscribe_footer}"
+    return NewsletterPreviewResponse(
+        subject=digest.subject,
+        text_body=text_body,
+        html_body=html_body,
+    )
+
+
 def escape_html(value: str) -> str:
     return (
         value.replace("&", "&amp;")
@@ -1455,8 +1482,13 @@ def send_newsletter_email(to_email: str, subject: str, text_body: str, html_body
         smtp.send_message(message)
 
 
-async def send_category_newsletter(category_id: str, email: str) -> NewsletterPreviewResponse:
+async def send_category_newsletter(
+    category_id: str,
+    email: str,
+    unsubscribe_token: str = "",
+) -> NewsletterPreviewResponse:
     digest = await build_newsletter_digest(category_id)
+    digest = personalize_newsletter_digest(digest, unsubscribe_token)
     await asyncio.to_thread(send_newsletter_email, email, digest.subject, digest.text_body, digest.html_body)
     return digest
 
@@ -1550,7 +1582,11 @@ async def newsletter_subscribe(request: NewsletterSubscribeRequest) -> dict[str,
     subscription = create_subscription(email, request.category_id, cadence)
 
     try:
-        digest = await send_category_newsletter(request.category_id, email)
+        digest = await send_category_newsletter(
+            request.category_id,
+            email,
+            subscription["unsubscribe_token"],
+        )
         sent_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
         record_delivery_sent(
             subscription["id"],
@@ -1588,6 +1624,33 @@ async def newsletter_unsubscribe(request: dict[str, str]) -> dict[str, str]:
     if not deactivate_subscription(token):
         raise HTTPException(status_code=500, detail="구독 해지에 실패했어요.")
     return {"status": "ok", "message": "뉴스레터 구독을 해지했어요."}
+
+
+@app.get("/api/newsletter/unsubscribe", response_class=HTMLResponse)
+async def newsletter_unsubscribe_page(token: str) -> HTMLResponse:
+    clean_token = token.strip()
+    subscription = get_subscription_by_token(clean_token)
+    if not clean_token or not subscription:
+        return HTMLResponse(
+            "<!doctype html><html lang=\"ko\"><body><h1>구독 정보를 찾지 못했어요.</h1></body></html>",
+            status_code=404,
+        )
+    deactivate_subscription(clean_token)
+    return HTMLResponse(
+        """
+        <!doctype html>
+        <html lang="ko">
+          <head><meta charset="utf-8"><meta name="viewport" content="width=device-width"></head>
+          <body style="margin:0;padding:48px 20px;background:#efebe1;color:#201b16;font-family:system-ui,sans-serif;">
+            <main style="max-width:640px;margin:0 auto;padding:32px;background:#fffdf7;border:1px solid #d8ccba;">
+              <p style="color:#9d2f23;font-weight:800;">읽을게</p>
+              <h1>뉴스레터 구독을 해지했어요.</h1>
+              <p>앞으로 이 카테고리의 정기 메일을 보내지 않습니다.</p>
+            </main>
+          </body>
+        </html>
+        """
+    )
 
 
 @app.post("/api/newsletter/preview", response_model=NewsletterPreviewResponse)

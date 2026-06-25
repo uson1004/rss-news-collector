@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import './styles.css';
+import { createLatestRequestTracker } from './utils/latestRequest';
 import { supabase, supabaseConfigured } from './utils/supabase';
 
 const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:8000';
@@ -99,6 +100,10 @@ function App() {
   const [route, setRoute] = useState(() => readHashRoute());
   const ttsParagraphsRef = useRef([]);
   const ttsIndexRef = useRef(0);
+  const feedRequestTrackerRef = useRef(null);
+  if (!feedRequestTrackerRef.current) {
+    feedRequestTrackerRef.current = createLatestRequestTracker();
+  }
   const [settings, setSettings] = useState(() => {
     const saved = localStorage.getItem('reader-settings');
     try {
@@ -193,6 +198,13 @@ function App() {
   useEffect(() => {
     stopTts();
   }, [article?.url]);
+
+  useEffect(
+    () => () => {
+      feedRequestTrackerRef.current?.cancel();
+    },
+    [],
+  );
 
   const articleStyle = useMemo(
     () => ({
@@ -323,22 +335,29 @@ function App() {
   }
 
   async function loadCategory(categoryId) {
+    const request = feedRequestTrackerRef.current.start();
     setActiveCategory(categoryId);
     setFeedStatus('loading');
     setFeedError('');
 
     try {
-      const response = await fetch(`${API_BASE}/api/feeds/${categoryId}`);
+      const response = await fetch(`${API_BASE}/api/feeds/${categoryId}`, {
+        signal: request.signal,
+      });
       const data = await response.json();
       if (!response.ok) {
         throw new Error(data.detail || '카테고리 글을 불러오지 못했어요.');
       }
+      if (!request.isCurrent()) return;
       setFeedItems(data.items || []);
       setFeedStatus('success');
     } catch (feedRequestError) {
+      if (feedRequestError.name === 'AbortError' || !request.isCurrent()) return;
       setFeedStatus('error');
       setFeedError(feedRequestError.message);
       setFeedItems([]);
+    } finally {
+      request.finish();
     }
   }
 

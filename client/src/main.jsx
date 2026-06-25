@@ -5,6 +5,7 @@ import { requestJson } from './utils/api';
 import { createLatestRequestTracker } from './utils/latestRequest';
 import { getReaderRecoveryOptions } from './utils/readerRecovery';
 import { supabase, supabaseConfigured } from './utils/supabase';
+import { getNextTabIndex } from './utils/tabs';
 import { normalizeArticleInput } from './utils/url';
 
 const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:8000';
@@ -103,6 +104,7 @@ function App() {
   const [route, setRoute] = useState(() => readHashRoute());
   const ttsParagraphsRef = useRef([]);
   const ttsIndexRef = useRef(0);
+  const categoryTabRefs = useRef(new Map());
   const feedRequestTrackerRef = useRef(null);
   if (!feedRequestTrackerRef.current) {
     feedRequestTrackerRef.current = createLatestRequestTracker();
@@ -373,6 +375,16 @@ function App() {
     } finally {
       request.finish();
     }
+  }
+
+  function handleCategoryTabKeyDown(event, currentIndex) {
+    if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+    event.preventDefault();
+    const nextIndex = getNextTabIndex(currentIndex, event.key, categories.length);
+    const nextCategory = categories[nextIndex];
+    if (!nextCategory) return;
+    categoryTabRefs.current.get(nextCategory.id)?.focus();
+    loadCategory(nextCategory.id);
   }
 
   async function discoverNewsletterCandidates() {
@@ -823,63 +835,83 @@ function App() {
           </div>
         </div>
         {categoriesStatus === 'error' && <p className="feed-error">{categoriesError}</p>}
-        <div className="category-tabs" role="tablist" aria-label="RSS 카테고리">
-          {categories.map((category) => (
+        <div className="category-tabs" role="tablist" aria-label="RSS 카테고리" aria-orientation="horizontal">
+          {categories.map((category, index) => (
             <button
               key={category.id}
+              id={`category-tab-${category.id}`}
               type="button"
+              role="tab"
+              aria-selected={activeCategory === category.id}
+              aria-controls="category-feed-panel"
+              tabIndex={activeCategory === category.id ? 0 : -1}
+              ref={(node) => {
+                if (node) {
+                  categoryTabRefs.current.set(category.id, node);
+                } else {
+                  categoryTabRefs.current.delete(category.id);
+                }
+              }}
               className={activeCategory === category.id ? 'active' : ''}
               onClick={() => loadCategory(category.id)}
+              onKeyDown={(event) => handleCategoryTabKeyDown(event, index)}
             >
               {category.label}
             </button>
           ))}
         </div>
-        {feedStatus === 'loading' && <p className="feed-note">카테고리 글을 불러오고 있어요.</p>}
-        {feedStatus === 'error' && <p className="feed-error">{feedError}</p>}
-        {feedStatus === 'success' && (
-          <>
-            {leadItem && (
-              <article className="lead-article">
-                <div>
-                  <p>{leadItem.source}</p>
-                  <h3>{leadItem.title}</h3>
-                  {leadItem.excerpt && <span>{leadItem.excerpt}</span>}
-                </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setUrl(leadItem.url);
-                    openReader(leadItem.url);
-                  }}
-                >
-                  펼쳐 읽기
-                </button>
-              </article>
-            )}
-            <div className="feed-list">
-              {supportingItems.map((item, index) => (
-                <article className="feed-item" key={item.url}>
-                  <strong>{String(index + 2).padStart(2, '0')}</strong>
+        <div
+          id="category-feed-panel"
+          role="tabpanel"
+          aria-labelledby={`category-tab-${activeCategory}`}
+          tabIndex={0}
+        >
+          {feedStatus === 'loading' && <p className="feed-note">카테고리 글을 불러오고 있어요.</p>}
+          {feedStatus === 'error' && <p className="feed-error">{feedError}</p>}
+          {feedStatus === 'success' && (
+            <>
+              {leadItem && (
+                <article className="lead-article">
                   <div>
-                    <p>{item.source}</p>
-                    <h3>{item.title}</h3>
-                    {item.excerpt && <span>{item.excerpt}</span>}
+                    <p>{leadItem.source}</p>
+                    <h3>{leadItem.title}</h3>
+                    {leadItem.excerpt && <span>{leadItem.excerpt}</span>}
                   </div>
                   <button
                     type="button"
                     onClick={() => {
-                      setUrl(item.url);
-                      openReader(item.url);
+                      setUrl(leadItem.url);
+                      openReader(leadItem.url);
                     }}
                   >
-                    읽기
+                    펼쳐 읽기
                   </button>
                 </article>
-              ))}
-            </div>
-          </>
-        )}
+              )}
+              <div className="feed-list">
+                {supportingItems.map((item, index) => (
+                  <article className="feed-item" key={item.url}>
+                    <strong>{String(index + 2).padStart(2, '0')}</strong>
+                    <div>
+                      <p>{item.source}</p>
+                      <h3>{item.title}</h3>
+                      {item.excerpt && <span>{item.excerpt}</span>}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setUrl(item.url);
+                        openReader(item.url);
+                      }}
+                    >
+                      읽기
+                    </button>
+                  </article>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
         <section className="newsletter-panel" aria-labelledby="newsletter-title">
           <div className="section-heading">
             <p className="eyebrow">뉴스레터</p>

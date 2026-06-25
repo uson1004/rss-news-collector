@@ -753,6 +753,26 @@ h1 {
   color: var(--danger);
 }
 
+.error-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.error-actions button {
+  min-height: 42px;
+  padding: 0 14px;
+  border-color: var(--danger);
+  color: var(--danger);
+  font-weight: 800;
+}
+
+.error-actions button:first-child {
+  background: var(--danger);
+  color: var(--surface);
+}
+
 .reader-view {
   width: min(calc(var(--reader-width) + 260px), 100%);
   margin: 44px auto 0;
@@ -1113,6 +1133,14 @@ h1 {
   }
 
   .input-row button {
+    width: 100%;
+  }
+
+  .error-actions {
+    align-items: stretch;
+  }
+
+  .error-actions button {
     width: 100%;
   }
 

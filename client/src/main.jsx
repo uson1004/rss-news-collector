@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import './styles.css';
 import { requestJson } from './utils/api';
 import { createLatestRequestTracker } from './utils/latestRequest';
+import { getReaderRecoveryOptions } from './utils/readerRecovery';
 import { supabase, supabaseConfigured } from './utils/supabase';
 import { normalizeArticleInput } from './utils/url';
 
@@ -299,6 +300,17 @@ function App() {
     setTranslationStatus('idle');
     setTranslationError('');
     stopTts();
+  }
+
+  function retryReader() {
+    const targetUrl = sessionStorage.getItem('reader-target-url');
+    if (targetUrl) {
+      parseUrl(targetUrl);
+    }
+  }
+
+  function leaveReader(nextRoute) {
+    window.location.hash = nextRoute;
   }
 
   async function loadCategories() {
@@ -1019,6 +1031,9 @@ function App() {
           onPauseTts={pauseTts}
           onResumeTts={resumeTts}
           onStopTts={stopTts}
+          canRetry={Boolean(sessionStorage.getItem('reader-target-url'))}
+          onRetry={retryReader}
+          onLeaveReader={leaveReader}
         />
       )}
 
@@ -1099,6 +1114,9 @@ function ReaderState({
   onPauseTts,
   onResumeTts,
   onStopTts,
+  canRetry,
+  onRetry,
+  onLeaveReader,
 }) {
   if (status === 'idle') {
     return (
@@ -1117,10 +1135,22 @@ function ReaderState({
   }
 
   if (status === 'error') {
+    const recoveryOptions = getReaderRecoveryOptions(canRetry);
     return (
       <section className="error-state" role="alert">
         <h2>본문을 추출하지 못했어요</h2>
         <p>{error}</p>
+        <div className="error-actions">
+          {recoveryOptions.map((option) => (
+            <button
+              key={option.id}
+              type="button"
+              onClick={() => (option.id === 'retry' ? onRetry() : onLeaveReader(option.route))}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
       </section>
     );
   }

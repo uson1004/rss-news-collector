@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import asyncio
+import ipaddress
 import json
 import os
 import re
+import socket
 import smtplib
 from pathlib import Path
 from datetime import datetime, timezone
@@ -336,7 +338,17 @@ async def fetch_html(url: str) -> str:
     }
 
     try:
-        async with httpx.AsyncClient(timeout=12, follow_redirects=True, headers=headers) as client:
+        validate_public_http_url(url)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    try:
+        async with httpx.AsyncClient(
+            timeout=12,
+            follow_redirects=True,
+            headers=headers,
+            event_hooks={"request": [validate_outbound_request]},
+        ) as client:
             response = await client.get(url)
             response.raise_for_status()
     except httpx.HTTPStatusError as exc:
@@ -388,7 +400,17 @@ async def fetch_feed_xml(url: str) -> str:
         "Accept": "application/rss+xml, application/atom+xml, application/xml, text/xml, */*",
     }
     try:
-        async with httpx.AsyncClient(timeout=10, follow_redirects=True, headers=headers) as client:
+        validate_public_http_url(url)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    try:
+        async with httpx.AsyncClient(
+            timeout=10,
+            follow_redirects=True,
+            headers=headers,
+            event_hooks={"request": [validate_outbound_request]},
+        ) as client:
             response = await client.get(url)
             response.raise_for_status()
     except httpx.HTTPError as exc:
@@ -833,6 +855,52 @@ def normalize_requested_article_url(value: object) -> object:
     return normalized
 
 
+def validate_public_http_url(url: str, resolver=socket.getaddrinfo) -> str:
+    parsed = urlparse(url)
+    hostname = parsed.hostname
+    if parsed.scheme.lower() not in {"http", "https"} or not hostname:
+        raise ValueError("유효한 HTTP URL을 입력해 주세요.")
+    if parsed.username or parsed.password:
+        raise ValueError("사용자 정보가 포함된 URL은 사용할 수 없어요.")
+
+    normalized_hostname = hostname.rstrip(".").lower()
+    if normalized_hostname == "localhost" or normalized_hostname.endswith((".localhost", ".local")):
+        raise ValueError("내부 네트워크 주소는 사용할 수 없어요.")
+
+    if (
+        parsed.path == "/demo/article"
+        and normalized_hostname in {"127.0.0.1", "::1"}
+        and (parsed.port or 80) == 8000
+    ):
+        return url
+
+    try:
+        literal_ip = ipaddress.ip_address(normalized_hostname)
+        addresses = [literal_ip]
+    except ValueError:
+        port = parsed.port or (443 if parsed.scheme.lower() == "https" else 80)
+        try:
+            resolved = resolver(normalized_hostname, port, type=socket.SOCK_STREAM)
+        except OSError as exc:
+            raise ValueError("URL의 호스트를 확인할 수 없어요.") from exc
+        addresses = []
+        for result in resolved:
+            socket_address = result[4]
+            if socket_address:
+                addresses.append(ipaddress.ip_address(socket_address[0]))
+
+    if not addresses or any(not address.is_global for address in addresses):
+        raise ValueError("내부 네트워크 주소는 사용할 수 없어요.")
+    return url
+
+
+async def validate_outbound_request(request: httpx.Request) -> None:
+    try:
+        await asyncio.to_thread(validate_public_http_url, str(request.url))
+    except ValueError as exc:
+        raise httpx.InvalidURL(str(exc)) from exc
+
+
 def extract_article_id(url: str) -> str:
     match = re.search(r"-([0-9a-f]{12})$", urlparse(url).path.rstrip("/"), flags=re.IGNORECASE)
     return match.group(1).lower() if match else ""
@@ -872,7 +940,17 @@ async def fetch_feed_xml(feed_url: str) -> str:
     }
 
     try:
-        async with httpx.AsyncClient(timeout=12, follow_redirects=True, headers=headers) as client:
+        validate_public_http_url(feed_url)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    try:
+        async with httpx.AsyncClient(
+            timeout=12,
+            follow_redirects=True,
+            headers=headers,
+            event_hooks={"request": [validate_outbound_request]},
+        ) as client:
             response = await client.get(feed_url)
             response.raise_for_status()
     except httpx.HTTPError as exc:

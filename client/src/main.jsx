@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import './styles.css';
-import { supabase } from './utils/supabase';
+import { supabase, supabaseConfigured } from './utils/supabase';
 
 const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:8000';
 
@@ -122,6 +122,11 @@ function App() {
   }, []);
 
   useEffect(() => {
+    if (!supabaseConfigured) {
+      setTodoStatus('unavailable');
+      return undefined;
+    }
+
     let active = true;
 
     async function loadTodoItems() {
@@ -888,6 +893,9 @@ function App() {
             </p>
           </div>
           {todoStatus === 'loading' && <p className="feed-note">Supabase 데이터를 불러오는 중이에요.</p>}
+          {todoStatus === 'unavailable' && (
+            <p className="feed-note">Supabase 설정이 없어 todos 데모만 비활성화됐어요.</p>
+          )}
           {todoStatus === 'error' && <p className="feed-error">{todoError}</p>}
           {todoStatus === 'success' && (
             <div className="feed-list">

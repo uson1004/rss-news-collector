@@ -1,10 +1,20 @@
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+export function createOptionalSupabaseClient(environment, clientFactory = createClient) {
+  const supabaseUrl = environment.VITE_SUPABASE_URL;
+  const supabaseKey = environment.VITE_SUPABASE_PUBLISHABLE_KEY;
 
-if (!supabaseUrl || !supabaseKey) {
-  throw new Error('Missing VITE_SUPABASE_URL or VITE_SUPABASE_PUBLISHABLE_KEY.');
+  if (!supabaseUrl || !supabaseKey) {
+    return { client: null, configured: false };
+  }
+
+  return {
+    client: clientFactory(supabaseUrl, supabaseKey),
+    configured: true,
+  };
 }
 
-export const supabase = createClient(supabaseUrl, supabaseKey);
+const optionalSupabase = createOptionalSupabaseClient(import.meta.env ?? {});
+
+export const supabase = optionalSupabase.client;
+export const supabaseConfigured = optionalSupabase.configured;

@@ -4,6 +4,7 @@ import './styles.css';
 import { requestJson } from './utils/api';
 import { createLatestRequestTracker } from './utils/latestRequest';
 import { supabase, supabaseConfigured } from './utils/supabase';
+import { normalizeArticleInput } from './utils/url';
 
 const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:8000';
 
@@ -262,14 +263,17 @@ function App() {
   }
 
   function openReader(targetUrl) {
-    const trimmedUrl = targetUrl.trim();
-    if (!trimmedUrl) {
-      setError('읽을 웹페이지 URL을 입력해 주세요.');
+    let normalizedUrl;
+    try {
+      normalizedUrl = normalizeArticleInput(targetUrl);
+    } catch (urlError) {
+      setError(urlError.message);
       return;
     }
 
-    sessionStorage.setItem('reader-target-url', trimmedUrl);
-    setUrl(trimmedUrl);
+    setError('');
+    sessionStorage.setItem('reader-target-url', normalizedUrl);
+    setUrl(normalizedUrl);
     if (window.location.hash !== '#/reader') {
       window.location.hash = '#/reader';
       return;
@@ -746,17 +750,20 @@ function App() {
               <div className="input-row">
                 <input
                   id="article-url"
-                  type="url"
+                  type="text"
+                  inputMode="url"
                   value={url}
                   onChange={(event) => setUrl(event.target.value)}
                   placeholder="https://example.com/article"
                   autoComplete="url"
+                  spellCheck="false"
                 />
                 <button type="submit" disabled={status === 'loading'}>
                   {status === 'loading' ? '추출 중' : '읽기'}
                 </button>
               </div>
             </form>
+            {error && <p className="feed-error" role="alert">{error}</p>}
 
             <div className="sample-row" aria-label="샘플 URL">
               {SAMPLE_URLS.map((sample) => (

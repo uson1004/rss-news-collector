@@ -1,0 +1,23 @@
+.DS_Store
+node_modules/
+client/node_modules/
+client/dist/
+server/.venv/
+server/__pycache__/
+*.pyc
+.env
+server/.env
+*.sqlite3
+
+# Local agent/runtime state
+.agents/
+.codex/
+.omx/
+skills-lock.json
+
+# Generated artifacts
+tmp/
+output/
+exports/
+docs/reports/.quicklook/
+docs/reports/.thumbnail/

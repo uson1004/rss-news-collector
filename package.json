@@ -1,0 +1,13 @@
+{
+  "name": "ilgeulge-reader",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "npm --prefix client run dev",
+    "build": "npm --prefix client run build",
+    "preview": "npm --prefix client run preview"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.107.0"
+  }
+}

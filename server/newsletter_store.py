@@ -95,6 +95,19 @@ def ensure_schema() -> None:
                 UNIQUE(subscription_id, delivery_window),
                 FOREIGN KEY(subscription_id) REFERENCES newsletter_subscriptions(id) ON DELETE CASCADE
             );
+
+            DELETE FROM newsletter_subscriptions
+            WHERE status = 'active'
+              AND rowid NOT IN (
+                  SELECT MIN(rowid)
+                  FROM newsletter_subscriptions
+                  WHERE status = 'active'
+                  GROUP BY LOWER(TRIM(email)), category_id, cadence
+              );
+
+            CREATE UNIQUE INDEX IF NOT EXISTS newsletter_active_subscription_unique
+            ON newsletter_subscriptions (LOWER(TRIM(email)), category_id, cadence)
+            WHERE status = 'active';
             """
         )
 
@@ -224,26 +237,67 @@ def row_to_category(row: dict[str, Any], sources: list[dict[str, str]]) -> dict[
 
 def create_subscription(email: str, category_id: str, cadence: str = "weekly") -> dict[str, Any]:
     ensure_schema()
+    normalized_email = email.strip().lower()
+    normalized_cadence = cadence.strip() or "weekly"
     subscription_id = uuid.uuid4().hex
     unsubscribe_token = uuid.uuid4().hex
     created_at = now_iso()
 
     with connect() as connection:
-        connection.execute(
+        existing = connection.execute(
             """
-            INSERT INTO newsletter_subscriptions (
-                id, email, category_id, cadence, status, unsubscribe_token, created_at, last_sent_at
-            )
-            VALUES (?, ?, ?, ?, 'active', ?, ?, '')
+            SELECT id, email, category_id, cadence, status, unsubscribe_token, created_at, last_sent_at
+            FROM newsletter_subscriptions
+            WHERE LOWER(TRIM(email)) = ?
+              AND category_id = ?
+              AND cadence = ?
+              AND status = 'active'
+            LIMIT 1
             """,
-            (subscription_id, email.strip().lower(), category_id, cadence.strip() or "weekly", unsubscribe_token, created_at),
-        )
+            (normalized_email, category_id, normalized_cadence),
+        ).fetchone()
+        if existing:
+            return dict(existing)
+
+        try:
+            connection.execute(
+                """
+                INSERT INTO newsletter_subscriptions (
+                    id, email, category_id, cadence, status, unsubscribe_token, created_at, last_sent_at
+                )
+                VALUES (?, ?, ?, ?, 'active', ?, ?, '')
+                """,
+                (
+                    subscription_id,
+                    normalized_email,
+                    category_id,
+                    normalized_cadence,
+                    unsubscribe_token,
+                    created_at,
+                ),
+            )
+        except sqlite3.IntegrityError:
+            existing = connection.execute(
+                """
+                SELECT id, email, category_id, cadence, status, unsubscribe_token, created_at, last_sent_at
+                FROM newsletter_subscriptions
+                WHERE LOWER(TRIM(email)) = ?
+                  AND category_id = ?
+                  AND cadence = ?
+                  AND status = 'active'
+                LIMIT 1
+                """,
+                (normalized_email, category_id, normalized_cadence),
+            ).fetchone()
+            if existing:
+                return dict(existing)
+            raise
 
     return get_subscription(subscription_id) or {
         "id": subscription_id,
-        "email": email.strip().lower(),
+        "email": normalized_email,
         "category_id": category_id,
-        "cadence": cadence.strip() or "weekly",
+        "cadence": normalized_cadence,
         "status": "active",
         "unsubscribe_token": unsubscribe_token,
         "created_at": created_at,

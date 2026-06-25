@@ -21,6 +21,7 @@ from newsletter_store import (
     ensure_categories,
     get_delivery_attempt,
     get_subscription,
+    list_active_subscriptions,
     list_due_subscriptions,
     mark_delivery_failed,
     mark_delivery_sent,
@@ -54,6 +55,13 @@ class NewsletterDeliveryTest(unittest.TestCase):
 
         self.assertEqual(subscription["category_id"], "geeknews")
         self.assertEqual(subscription["email"], "default@example.com")
+
+    def test_repeated_subscription_reuses_active_record(self) -> None:
+        first = self.create_weekly_subscription(" Reader@Example.com ")
+        second = self.create_weekly_subscription("reader@example.com")
+
+        self.assertEqual(second["id"], first["id"])
+        self.assertEqual(len(list_active_subscriptions()), 1)
 
     def test_delivery_window_uses_utc_iso_week(self) -> None:
         self.assertEqual(delivery_window_for("2026-01-04T23:59:00+00:00"), "2026-W01")

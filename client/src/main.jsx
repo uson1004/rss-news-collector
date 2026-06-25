@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import './styles.css';
+import { requestJson } from './utils/api';
 import { createLatestRequestTracker } from './utils/latestRequest';
 import { supabase, supabaseConfigured } from './utils/supabase';
 
@@ -242,16 +243,15 @@ function App() {
     stopTts();
 
     try {
-      const response = await fetch(`${API_BASE}/api/parse`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: trimmedUrl }),
-      });
-
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.detail || '본문을 추출하지 못했어요.');
-      }
+      const data = await requestJson(
+        `${API_BASE}/api/parse`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url: trimmedUrl }),
+        },
+        '본문을 추출하지 못했어요.',
+      );
 
       setArticle(data);
       setStatus('success');
@@ -302,11 +302,11 @@ function App() {
     setCategoriesError('');
 
     try {
-      const response = await fetch(`${API_BASE}/api/categories`);
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.detail || '카테고리를 불러오지 못했어요.');
-      }
+      const data = await requestJson(
+        `${API_BASE}/api/categories`,
+        {},
+        '카테고리를 불러오지 못했어요.',
+      );
 
       setCategories(data.length ? data : DEFAULT_RSS_CATEGORIES);
       setCategoriesStatus('success');
@@ -341,13 +341,11 @@ function App() {
     setFeedError('');
 
     try {
-      const response = await fetch(`${API_BASE}/api/feeds/${categoryId}`, {
-        signal: request.signal,
-      });
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.detail || '카테고리 글을 불러오지 못했어요.');
-      }
+      const data = await requestJson(
+        `${API_BASE}/api/feeds/${categoryId}`,
+        { signal: request.signal },
+        '카테고리 글을 불러오지 못했어요.',
+      );
       if (!request.isCurrent()) return;
       setFeedItems(data.items || []);
       setFeedStatus('success');
@@ -377,15 +375,15 @@ function App() {
     setNewsletterDraftError('');
 
     try {
-      const response = await fetch(`${API_BASE}/api/newsletter/discover`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ label, search_hint: searchHint }),
-      });
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.detail || 'RSS 후보를 찾지 못했어요.');
-      }
+      const data = await requestJson(
+        `${API_BASE}/api/newsletter/discover`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ label, search_hint: searchHint }),
+        },
+        'RSS 후보를 찾지 못했어요.',
+      );
 
       setNewsletterDraft((current) => ({
         ...current,
@@ -418,23 +416,23 @@ function App() {
     setNewsletterDraftError('');
 
     try {
-      const response = await fetch(`${API_BASE}/api/newsletter/categories`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          label: newsletterDraft.label.trim(),
-          search_hint: newsletterDraft.searchHint.trim(),
-          sources: selectedSources.map((source) => ({
-            source_label: source.source_label,
-            feed_url: source.feed_url,
-            reason: source.reason,
-          })),
-        }),
-      });
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.detail || '카테고리를 저장하지 못했어요.');
-      }
+      const data = await requestJson(
+        `${API_BASE}/api/newsletter/categories`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            label: newsletterDraft.label.trim(),
+            search_hint: newsletterDraft.searchHint.trim(),
+            sources: selectedSources.map((source) => ({
+              source_label: source.source_label,
+              feed_url: source.feed_url,
+              reason: source.reason,
+            })),
+          }),
+        },
+        '카테고리를 저장하지 못했어요.',
+      );
 
       setNewsletterModalOpen(false);
       setNewsletterModalStep(1);
@@ -466,19 +464,19 @@ function App() {
     setNewsletterSubscribeMessage('');
 
     try {
-      const response = await fetch(`${API_BASE}/api/newsletter/subscribe`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email,
-          category_id: newsletterCategoryId,
-          cadence: 'weekly',
-        }),
-      });
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.detail || '뉴스레터 구독에 실패했어요.');
-      }
+      const data = await requestJson(
+        `${API_BASE}/api/newsletter/subscribe`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email,
+            category_id: newsletterCategoryId,
+            cadence: 'weekly',
+          }),
+        },
+        '뉴스레터 구독에 실패했어요.',
+      );
 
       setNewsletterSubscribeStatus('success');
       setNewsletterSubscribeMessage(data.message || '뉴스레터 구독이 완료됐어요.');
@@ -503,15 +501,15 @@ function App() {
     setTranslationError('');
 
     try {
-      const response = await fetch(`${API_BASE}/api/summarize`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title: article.title, text: article.text }),
-      });
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.detail || 'AI 요약을 만들지 못했어요.');
-      }
+      const data = await requestJson(
+        `${API_BASE}/api/summarize`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ title: article.title, text: article.text }),
+        },
+        'AI 요약을 만들지 못했어요.',
+      );
       setSummary(data);
       setSummaryStatus('success');
     } catch (summaryRequestError) {
@@ -528,20 +526,20 @@ function App() {
     setArticleInsight(null);
 
     try {
-      const response = await fetch(`${API_BASE}/api/article-insight`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title: article.title,
-          text: article.text,
-          source: article.site_name,
-          category: activeCategory,
-        }),
-      });
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.detail || 'AI 관찰 노트를 만들지 못했어요.');
-      }
+      const data = await requestJson(
+        `${API_BASE}/api/article-insight`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            title: article.title,
+            text: article.text,
+            source: article.site_name,
+            category: activeCategory,
+          }),
+        },
+        'AI 관찰 노트를 만들지 못했어요.',
+      );
       setArticleInsight(data);
       setArticleInsightStatus('success');
     } catch (insightRequestError) {
@@ -559,15 +557,15 @@ function App() {
     setCopyStatus('idle');
 
     try {
-      const response = await fetch(`${API_BASE}/api/follow-up-prompt`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title: article.title, summary: summary.summary }),
-      });
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.detail || '질문 프롬프트를 만들지 못했어요.');
-      }
+      const data = await requestJson(
+        `${API_BASE}/api/follow-up-prompt`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ title: article.title, summary: summary.summary }),
+        },
+        '질문 프롬프트를 만들지 못했어요.',
+      );
       setFollowUpPrompt(data.prompt);
       setFollowUpPromptStatus('success');
     } catch (followUpPromptRequestError) {
@@ -595,19 +593,19 @@ function App() {
     setTranslation(null);
 
     try {
-      const response = await fetch(`${API_BASE}/api/translate`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title: article.title,
-          text: article.text,
-          target_language: targetLanguage,
-        }),
-      });
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.detail || '번역을 만들지 못했어요.');
-      }
+      const data = await requestJson(
+        `${API_BASE}/api/translate`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            title: article.title,
+            text: article.text,
+            target_language: targetLanguage,
+          }),
+        },
+        '번역을 만들지 못했어요.',
+      );
       setTranslation(data);
       setTranslationStatus('success');
     } catch (translationRequestError) {

@@ -7,6 +7,7 @@ import { copyTextToClipboard } from './utils/clipboard';
 import { getDialogFocusTargetIndex, shouldCloseDialog } from './utils/dialog';
 import { createLatestRequestTracker } from './utils/latestRequest';
 import { hasLoadingStatus } from './utils/loadingStatus';
+import { clearedNewsletterFeedback } from './utils/newsletterFeedback';
 import { getReaderRecoveryOptions } from './utils/readerRecovery';
 import { normalizeReaderSettings } from './utils/readerSettings';
 import { supabase, supabaseConfigured } from './utils/supabase';
@@ -514,6 +515,13 @@ function App() {
     }
   }
 
+  function resetNewsletterSubscribeFeedback() {
+    const feedback = clearedNewsletterFeedback();
+    setNewsletterSubscribeStatus(feedback.status);
+    setNewsletterSubscribeError(feedback.error);
+    setNewsletterSubscribeMessage(feedback.message);
+  }
+
   async function summarizeArticle() {
     if (!article) return;
 
@@ -924,8 +932,11 @@ function App() {
             <input
               id="newsletter-email"
               type="email"
-              value={newsletterEmail}
-              onChange={(event) => setNewsletterEmail(event.target.value)}
+	              value={newsletterEmail}
+	              onChange={(event) => {
+	                setNewsletterEmail(event.target.value);
+	                resetNewsletterSubscribeFeedback();
+	              }}
               placeholder="name@example.com"
               autoComplete="email"
             />
@@ -933,8 +944,11 @@ function App() {
             <label htmlFor="newsletter-category">카테고리</label>
             <select
               id="newsletter-category"
-              value={newsletterCategoryId}
-              onChange={(event) => setNewsletterCategoryId(event.target.value)}
+	              value={newsletterCategoryId}
+	              onChange={(event) => {
+	                setNewsletterCategoryId(event.target.value);
+	                resetNewsletterSubscribeFeedback();
+	              }}
             >
               {categories.map((category) => (
                 <option key={category.id} value={category.id}>

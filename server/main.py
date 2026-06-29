@@ -413,38 +413,6 @@ async def fetch_html(url: str) -> str:
     return response.text
 
 
-async def fetch_feed_xml(url: str) -> str:
-    headers = {
-        "User-Agent": (
-            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-            "AppleWebKit/537.36 (KHTML, like Gecko) "
-            "Chrome/125.0 Safari/537.36"
-        ),
-        "Accept": "application/rss+xml, application/atom+xml, application/xml, text/xml, */*",
-    }
-    try:
-        validate_public_http_url(url)
-    except ValueError as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
-
-    try:
-        async with httpx.AsyncClient(
-            timeout=10,
-            follow_redirects=True,
-            headers=headers,
-            event_hooks={"request": [validate_outbound_request]},
-        ) as client:
-            response = await client.get(url)
-            response.raise_for_status()
-    except httpx.HTTPError as exc:
-        raise HTTPException(
-            status_code=502,
-            detail="RSS 피드를 가져오지 못했어요. 잠시 후 다시 시도해 주세요.",
-        ) from exc
-
-    return response.text
-
-
 async def collect_feed_items(category: str, limit: int = 12) -> FeedResponse:
     feed_config = RSS_FEEDS.get(category)
     if feed_config:
@@ -574,8 +542,9 @@ def feed_item_link(node: BeautifulSoup) -> str:
         href = link_node.get("href", "").strip()
         rel = " ".join(link_node.get("rel", []) if isinstance(link_node.get("rel"), list) else [link_node.get("rel", "")])
         link_type = link_node.get("type", "")
-        if href and ("alternate" in rel.lower() or link_type.startswith("text/html")):
-            return href
+        normalized_href = normalize_feed_item_link(href)
+        if normalized_href and ("alternate" in rel.lower() or link_type.startswith("text/html")):
+            return normalized_href
 
     link_node = link_nodes[0] if link_nodes else None
     if not link_node:
@@ -583,8 +552,18 @@ def feed_item_link(node: BeautifulSoup) -> str:
 
     href = link_node.get("href")
     if href:
-        return href.strip()
-    return link_node.get_text(" ", strip=True)
+        return normalize_feed_item_link(href)
+    return normalize_feed_item_link(link_node.get_text(" ", strip=True))
+
+
+def normalize_feed_item_link(value: str) -> str:
+    candidate = value.strip()
+    if not candidate:
+        return ""
+    parsed = urlparse(candidate)
+    if parsed.scheme.lower() not in {"http", "https"} or not parsed.netloc:
+        return ""
+    return candidate
 
 
 def strip_markup(value: str) -> str:

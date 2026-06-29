@@ -8,7 +8,7 @@ from pydantic import ValidationError
 
 sys.path.insert(0, str(Path(__file__).parent))
 
-from main import ParseRequest, validate_public_http_url
+from main import ParseRequest, parse_feed_items, validate_public_http_url
 
 
 class ParseRequestTest(unittest.TestCase):
@@ -43,6 +43,34 @@ class ParseRequestTest(unittest.TestCase):
             validate_public_http_url("https://news.example/article", resolver=resolver),
             "https://news.example/article",
         )
+
+    def test_feed_xml_fetcher_has_single_definition(self) -> None:
+        source = Path(__file__).with_name("main.py").read_text()
+
+        self.assertEqual(source.count("async def fetch_feed_xml("), 1)
+
+    def test_feed_item_parser_skips_non_http_links(self) -> None:
+        xml = """
+        <rss>
+          <channel>
+            <title>Example Feed</title>
+            <item>
+              <title>Bad Link</title>
+              <link>javascript:alert(1)</link>
+              <description>Bad</description>
+            </item>
+            <item>
+              <title>Good Link</title>
+              <link>https://example.com/post</link>
+              <description>Good</description>
+            </item>
+          </channel>
+        </rss>
+        """
+
+        items = parse_feed_items(xml, "tech", "IT", set(), [])
+
+        self.assertEqual([item.url for item in items], ["https://example.com/post"])
 
 
 if __name__ == "__main__":

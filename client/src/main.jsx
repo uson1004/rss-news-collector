@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import './styles.css';
 import { requestJson } from './utils/api';
 import { safeLocalStorage, safeSessionStorage } from './utils/browserStorage';
+import { copyTextToClipboard } from './utils/clipboard';
 import { getDialogFocusTargetIndex, shouldCloseDialog } from './utils/dialog';
 import { createLatestRequestTracker } from './utils/latestRequest';
 import { getReaderRecoveryOptions } from './utils/readerRecovery';
@@ -603,12 +604,11 @@ function App() {
   async function copyFollowUpPrompt() {
     if (!followUpPrompt) return;
 
-    try {
-      await navigator.clipboard.writeText(followUpPrompt);
+    if (await copyTextToClipboard(followUpPrompt)) {
       setCopyStatus('success');
-    } catch {
-      setCopyStatus('error');
+      return;
     }
+    setCopyStatus('error');
   }
 
   async function translateArticle() {

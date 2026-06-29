@@ -158,6 +158,14 @@ class NewsletterDiscoverRequest(BaseModel):
     label: str
     search_hint: str
 
+    @field_validator("label", "search_hint", mode="before")
+    @classmethod
+    def require_non_blank_text(cls, value: object) -> str:
+        normalized = " ".join(str(value or "").split()).strip()
+        if not normalized:
+            raise ValueError("카테고리 이름과 검색 힌트를 입력해 주세요.")
+        return normalized
+
 
 class NewsletterCandidate(BaseModel):
     source_label: str

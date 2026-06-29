@@ -6,6 +6,7 @@ import { safeLocalStorage, safeSessionStorage } from './utils/browserStorage';
 import { copyTextToClipboard } from './utils/clipboard';
 import { getDialogFocusTargetIndex, shouldCloseDialog } from './utils/dialog';
 import { createLatestRequestTracker } from './utils/latestRequest';
+import { hasLoadingStatus } from './utils/loadingStatus';
 import { getReaderRecoveryOptions } from './utils/readerRecovery';
 import { normalizeReaderSettings } from './utils/readerSettings';
 import { supabase, supabaseConfigured } from './utils/supabase';
@@ -1148,6 +1149,13 @@ function ReaderState({
   onRetry,
   onLeaveReader,
 }) {
+  const aiActionLoading = hasLoadingStatus([
+    summaryStatus,
+    articleInsightStatus,
+    followUpPromptStatus,
+    translationStatus,
+  ]);
+
   if (status === 'idle') {
     return (
       <section className="empty-state">
@@ -1199,7 +1207,7 @@ function ReaderState({
           <p className="summary-kicker">AI 관찰 노트</p>
           <h3 id="insight-title">읽을 이유와 아이디어 신호를 원문 옆에 메모합니다</h3>
         </div>
-        <button type="button" onClick={onGenerateArticleInsight} disabled={articleInsightStatus === 'loading'}>
+        <button type="button" onClick={onGenerateArticleInsight} disabled={aiActionLoading}>
           {articleInsightStatus === 'loading' ? '관찰 중' : '관찰 노트 만들기'}
         </button>
         {articleInsightStatus === 'error' && <p className="summary-error">{articleInsightError}</p>}
@@ -1246,7 +1254,7 @@ function ReaderState({
           <p className="summary-kicker">AI 요약</p>
           <h3 id="summary-title">원문을 바꾸지 않고 핵심만 압축합니다</h3>
         </div>
-        <button type="button" onClick={onSummarize} disabled={summaryStatus === 'loading'}>
+        <button type="button" onClick={onSummarize} disabled={aiActionLoading}>
           {summaryStatus === 'loading' ? '요약 중' : '요약 만들기'}
         </button>
         {summaryStatus === 'error' && <p className="summary-error">{summaryError}</p>}
@@ -1262,7 +1270,7 @@ function ReaderState({
               <button
                 type="button"
                 onClick={onGenerateFollowUpPrompt}
-                disabled={followUpPromptStatus === 'loading'}
+                disabled={aiActionLoading}
               >
                 {followUpPromptStatus === 'loading' ? '질문 준비 중' : '질문 생성하기'}
               </button>
@@ -1305,7 +1313,7 @@ function ReaderState({
               </option>
             ))}
           </select>
-          <button type="button" onClick={onTranslate} disabled={translationStatus === 'loading'}>
+          <button type="button" onClick={onTranslate} disabled={aiActionLoading}>
             {translationStatus === 'loading' ? '번역 중' : '번역하기'}
           </button>
         </div>

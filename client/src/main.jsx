@@ -6,6 +6,7 @@ import { safeLocalStorage, safeSessionStorage } from './utils/browserStorage';
 import { getDialogFocusTargetIndex, shouldCloseDialog } from './utils/dialog';
 import { createLatestRequestTracker } from './utils/latestRequest';
 import { getReaderRecoveryOptions } from './utils/readerRecovery';
+import { normalizeReaderSettings } from './utils/readerSettings';
 import { supabase, supabaseConfigured } from './utils/supabase';
 import { getNextTabIndex } from './utils/tabs';
 import { normalizeArticleInput } from './utils/url';
@@ -112,7 +113,7 @@ function App() {
     feedRequestTrackerRef.current = createLatestRequestTracker();
   }
   const [settings, setSettings] = useState(() => {
-    return { ...DEFAULT_SETTINGS, ...safeLocalStorage.getJson('reader-settings', {}) };
+    return normalizeReaderSettings(safeLocalStorage.getJson('reader-settings', {}), DEFAULT_SETTINGS);
   });
 
   useEffect(() => {

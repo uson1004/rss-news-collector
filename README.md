@@ -83,12 +83,14 @@ export NEWSLETTER_SMTP_PORT="587"
 export NEWSLETTER_SMTP_USERNAME="your_username"
 export NEWSLETTER_SMTP_PASSWORD="your_password"
 export NEWSLETTER_FROM_EMAIL="noreply@example.com"
+export NEWSLETTER_PUBLIC_BASE_URL="https://your-reader.example.com"
 export NEWSLETTER_ADMIN_SECRET="change_this_for_batch_endpoint"
 ```
 
 `ANTHROPIC_API_KEY`가 없으면 원문 리더 뷰는 그대로 동작하고, AI 요약과 AI 관찰 노트 버튼만 안내 메시지를 표시합니다.
 `DEEPL_API_KEY`가 없으면 원문 리더 뷰와 요약은 그대로 동작하고, 번역 버튼만 안내 메시지를 표시합니다.
 `NEWSLETTER_SMTP_*` 값이 없으면 뉴스레터 구독은 저장되지만 첫 메일 발송은 안내 메시지로 대체합니다.
+`NEWSLETTER_PUBLIC_BASE_URL`은 뉴스레터 하단의 구독 해지 링크에 사용됩니다. 배포 주소를 넣지 않으면 로컬 기본값(`http://localhost:8000`)을 사용합니다.
 `NEWSLETTER_ADMIN_SECRET`은 선택 사항입니다. 설정한 경우에만 서버 API로 예약 발송을 트리거할 수 있습니다.
 
 ### 뉴스레터 예약 발송
@@ -129,6 +131,7 @@ X-Newsletter-Admin-Secret: change_this_for_batch_endpoint
 새 터미널에서 실행합니다.
 
 ```bash
+cd client
 npm install
 npm run dev
 ```
@@ -137,6 +140,33 @@ npm run dev
 
 ```txt
 http://localhost:5173
+```
+
+Supabase `todos` 데모를 켜려면 프론트엔드 실행 전에 Vite 환경변수를 설정합니다.
+
+```bash
+export VITE_SUPABASE_URL="https://your-project.supabase.co"
+export VITE_SUPABASE_PUBLISHABLE_KEY="your_publishable_key"
+```
+
+두 값이 없으면 리더와 뉴스 화면은 그대로 동작하고 Supabase 데모 패널만 비활성화됩니다.
+
+## 검증
+
+프론트엔드 유틸 테스트와 빌드:
+
+```bash
+cd client
+npm test
+npm run build
+```
+
+백엔드 유닛 테스트와 문법 검사:
+
+```bash
+cd server
+./.venv/bin/python -m unittest discover -s . -p 'test_*.py'
+./.venv/bin/python -m compileall -q . -x '/\\.venv/'
 ```
 
 ## API

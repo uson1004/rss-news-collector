@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import './styles.css';
 import { requestJson } from './utils/api';
+import { safeLocalStorage, safeSessionStorage } from './utils/browserStorage';
 import { getDialogFocusTargetIndex, shouldCloseDialog } from './utils/dialog';
 import { createLatestRequestTracker } from './utils/latestRequest';
 import { getReaderRecoveryOptions } from './utils/readerRecovery';
@@ -111,16 +112,11 @@ function App() {
     feedRequestTrackerRef.current = createLatestRequestTracker();
   }
   const [settings, setSettings] = useState(() => {
-    const saved = localStorage.getItem('reader-settings');
-    try {
-      return saved ? { ...DEFAULT_SETTINGS, ...JSON.parse(saved) } : DEFAULT_SETTINGS;
-    } catch {
-      return DEFAULT_SETTINGS;
-    }
+    return { ...DEFAULT_SETTINGS, ...safeLocalStorage.getJson('reader-settings', {}) };
   });
 
   useEffect(() => {
-    localStorage.setItem('reader-settings', JSON.stringify(settings));
+    safeLocalStorage.setJson('reader-settings', settings);
     document.documentElement.dataset.theme = settings.theme;
   }, [settings]);
 
@@ -190,7 +186,7 @@ function App() {
   useEffect(() => {
     if (route !== '/reader') return;
 
-    const targetUrl = sessionStorage.getItem('reader-target-url');
+    const targetUrl = safeSessionStorage.getItem('reader-target-url', '');
     if (!targetUrl) {
       setStatus('error');
       setError('읽을 URL이 없어요. 뉴스나 URL 입력 화면에서 글을 선택해 주세요.');
@@ -276,7 +272,7 @@ function App() {
     }
 
     setError('');
-    sessionStorage.setItem('reader-target-url', normalizedUrl);
+    safeSessionStorage.setItem('reader-target-url', normalizedUrl);
     setUrl(normalizedUrl);
     if (window.location.hash !== '#/reader') {
       window.location.hash = '#/reader';
@@ -306,7 +302,7 @@ function App() {
   }
 
   function retryReader() {
-    const targetUrl = sessionStorage.getItem('reader-target-url');
+    const targetUrl = safeSessionStorage.getItem('reader-target-url', '');
     if (targetUrl) {
       parseUrl(targetUrl);
     }
@@ -1064,7 +1060,7 @@ function App() {
           onPauseTts={pauseTts}
           onResumeTts={resumeTts}
           onStopTts={stopTts}
-          canRetry={Boolean(sessionStorage.getItem('reader-target-url'))}
+          canRetry={Boolean(safeSessionStorage.getItem('reader-target-url', ''))}
           onRetry={retryReader}
           onLeaveReader={leaveReader}
         />

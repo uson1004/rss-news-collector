@@ -518,6 +518,7 @@ def deactivate_subscription(token: str) -> bool:
             UPDATE newsletter_subscriptions
             SET status = 'inactive'
             WHERE unsubscribe_token = ?
+              AND status = 'active'
             """,
             (token,),
         )

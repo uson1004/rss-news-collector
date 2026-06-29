@@ -1644,6 +1644,8 @@ async def newsletter_unsubscribe(request: dict[str, str]) -> dict[str, str]:
     subscription = get_subscription_by_token(token)
     if not subscription:
         raise HTTPException(status_code=404, detail="구독 정보를 찾지 못했어요.")
+    if subscription["status"] != "active":
+        return {"status": "ok", "message": "이미 해지된 뉴스레터 구독이에요."}
     if not deactivate_subscription(token):
         raise HTTPException(status_code=500, detail="구독 해지에 실패했어요.")
     return {"status": "ok", "message": "뉴스레터 구독을 해지했어요."}
@@ -1657,6 +1659,22 @@ async def newsletter_unsubscribe_page(token: str) -> HTMLResponse:
         return HTMLResponse(
             "<!doctype html><html lang=\"ko\"><body><h1>구독 정보를 찾지 못했어요.</h1></body></html>",
             status_code=404,
+        )
+    if subscription["status"] != "active":
+        return HTMLResponse(
+            """
+            <!doctype html>
+            <html lang="ko">
+              <head><meta charset="utf-8"><meta name="viewport" content="width=device-width"></head>
+              <body style="margin:0;padding:48px 20px;background:#efebe1;color:#201b16;font-family:system-ui,sans-serif;">
+                <main style="max-width:640px;margin:0 auto;padding:32px;background:#fffdf7;border:1px solid #d8ccba;">
+                  <p style="color:#9d2f23;font-weight:800;">읽을게</p>
+                  <h1>이미 해지된 구독이에요.</h1>
+                  <p>이 카테고리의 정기 메일은 다시 보내지 않습니다.</p>
+                </main>
+              </body>
+            </html>
+            """
         )
     deactivate_subscription(clean_token)
     return HTMLResponse(

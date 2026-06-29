@@ -196,6 +196,16 @@ class NewsletterDeliveryTest(unittest.TestCase):
         self.assertIn("구독을 해지했어요", response.body.decode())
         self.assertEqual(list_active_subscriptions(), [])
 
+    def test_unsubscribe_is_idempotent_for_inactive_subscriptions(self) -> None:
+        subscription = self.create_weekly_subscription()
+
+        self.assertTrue(deactivate_subscription(subscription["unsubscribe_token"]))
+        self.assertFalse(deactivate_subscription(subscription["unsubscribe_token"]))
+
+        response = asyncio.run(newsletter_unsubscribe_page(subscription["unsubscribe_token"]))
+
+        self.assertIn("이미 해지된 구독이에요", response.body.decode())
+
 
 if __name__ == "__main__":
     unittest.main()

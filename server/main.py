@@ -170,6 +170,21 @@ class NewsletterCategoryCreateRequest(BaseModel):
     search_hint: str
     sources: list[NewsletterCandidate]
 
+    @field_validator("label", "search_hint", mode="before")
+    @classmethod
+    def require_non_blank_text(cls, value: object) -> str:
+        normalized = " ".join(str(value or "").split()).strip()
+        if not normalized:
+            raise ValueError("카테고리 이름과 검색 힌트를 입력해 주세요.")
+        return normalized
+
+    @field_validator("sources")
+    @classmethod
+    def require_sources(cls, value: list[NewsletterCandidate]) -> list[NewsletterCandidate]:
+        if not value:
+            raise ValueError("최소 하나의 RSS 후보를 선택해 주세요.")
+        return value
+
 
 class NewsletterSubscribeRequest(BaseModel):
     email: str
